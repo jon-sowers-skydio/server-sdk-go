@@ -151,7 +151,8 @@ func NewRoom(callback *RoomCallback) *Room {
 	engine.OnDisconnected = r.handleDisconnect
 	engine.OnParticipantUpdate = r.handleParticipantUpdate
 	engine.OnSpeakersChanged = r.handleSpeakersChange
-	engine.OnDataPacket = r.handleDataReceived
+	engine.OnDataPacket = r.handleDataPacket
+	engine.OnDataReceived = r.handleDataReceived
 	engine.OnConnectionQuality = r.handleConnectionQualityUpdate
 	engine.OnRoomUpdate = r.handleRoomUpdate
 	engine.OnRestarting = r.handleRestarting
@@ -387,7 +388,7 @@ func (r *Room) handleResumed() {
 	r.sendSyncState()
 }
 
-func (r *Room) handleDataReceived(identity string, dataPacket DataPacket) {
+func (r *Room) handleDataPacket(identity string, dataPacket DataPacket) {
 	if identity == r.LocalParticipant.Identity() {
 		// if sent by itself, do not handle data
 		return
@@ -397,18 +398,27 @@ func (r *Room) handleDataReceived(identity string, dataPacket DataPacket) {
 		SenderIdentity: identity,
 		Sender:         p,
 	}
-	switch msg := dataPacket.(type) {
-	case *UserDataPacket: // compatibility
-		params.Topic = msg.Topic
-		if p != nil {
-			p.Callback.OnDataReceived(msg.Payload, params)
-		}
-		r.callback.OnDataReceived(msg.Payload, params)
-	}
 	if p != nil {
 		p.Callback.OnDataPacket(dataPacket, params)
 	}
 	r.callback.OnDataPacket(dataPacket, params)
+}
+
+func (r *Room) handleDataReceived(userPacket *livekit.UserPacket) {
+	if userPacket.ParticipantSid == r.LocalParticipant.SID() {
+		// if sent by itself, do not handle data
+		return
+	}
+	p := r.GetParticipantBySID(userPacket.ParticipantSid)
+	params := DataReceiveParams{
+		Sender: p,
+		Topic:  userPacket.GetTopic(),
+	}
+	if p != nil {
+		params.SenderIdentity = p.Identity()
+		p.Callback.OnDataReceived(userPacket.Payload, params)
+	}
+	r.callback.OnDataReceived(userPacket.Payload, params)
 }
 
 func (r *Room) handleParticipantUpdate(participants []*livekit.ParticipantInfo) {
