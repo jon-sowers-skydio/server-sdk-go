@@ -362,6 +362,7 @@ func (p *LocalParticipant) PublishDataPacket(pck DataPacket, opts ...DataPublish
 	dataPacket.DestinationIdentities = options.DestinationIdentities
 	if u, ok := dataPacket.Value.(*livekit.DataPacket_User); ok && u.User != nil {
 		//lint:ignore SA1019 backward compatibility
+		u.User.ParticipantSid = p.sid
 		u.User.DestinationIdentities = options.DestinationIdentities
 	}
 
